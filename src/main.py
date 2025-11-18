@@ -5,7 +5,7 @@ import torch
 from matplotlib import pyplot as plt
 
 from src.config import BATCH_SIZE, NUM_EPOCHS, LEARNING_RATE, HIDDEN_SIZE, device, DROPOUT_RATE, MAX_LENGTH, \
-    TRAINING_RATE, ATTENTION_CHECKPOINT, OUTPUT_DIR, RESULT_DIR
+    TRAINING_RATE, ATTENTION_CHECKPOINT, OUTPUT_DIR, RESULT_DIR, NUM_LAYER
 from src.data.data_collection import DataCollection
 from src.data.pair_data_loader import PairDataLoader
 from src.inference.seq2seq import Seq2SeqTrainer
@@ -43,11 +43,11 @@ if __name__ == "__main__":
     print("Combined training and validation DataLoaders created successfully.")
 
     encoder_multi_lang = EncoderRNN(input_size=combined_input_language.num_words, hidden_size=HIDDEN_SIZE,
-                                    dropout_rate=DROPOUT_RATE).to(device)
+                                    dropout_rate=DROPOUT_RATE,num_layers=NUM_LAYER).to(device)
     decoder_attention_multi_lang = AttentionDecoderRNN(hidden_size=HIDDEN_SIZE,
                                                        output_size=combined_output_language.num_words,
                                                        dropout_rate=DROPOUT_RATE, device=device,
-                                                       max_length=MAX_LENGTH).to(device)
+                                                       max_length=MAX_LENGTH,num_layers=NUM_LAYER).to(device)
 
     trainer_multi_lang = Seq2SeqTrainer(
         train_dataloader=combined_train_dataloader,
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     attention_losses_multi_float = [l.item() if isinstance(l, torch.Tensor) else l for l in multi_lang_losses]
     attention_accuracies_multi_float = [a.item() if isinstance(a, torch.Tensor) else a for a in multi_lang_accuracies]
     attention_rouge_f1s_multi_float = [r.item() if isinstance(r, torch.Tensor) else r for r in multi_lang_rouge_f1s]
-
+    print(f"accuracies : {attention_accuracies_multi_float}")
     sns.lineplot(x=range(1, NUM_EPOCHS + 1), y=attention_losses_multi_float, ax=axes[0])
     axes[0].set_xlabel('Epochs')
     axes[0].set_ylabel('Loss')
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     axes[2].set_xlabel('Epochs')
     axes[2].set_ylabel('ROUGE-1 F1')
     axes[2].set_title('ROUGE-1 F1: Multilang Attention Model')
-    main_title = f"Training Results (Epochs: {NUM_EPOCHS}, Dropout: {DROPOUT_RATE:.2f}, LR: {LEARNING_RATE}, HS:{HIDDEN_SIZE})"
+    main_title = f"Training Results (Epochs: {NUM_EPOCHS}, Dropout: {DROPOUT_RATE:.2f}, LR: {LEARNING_RATE}, HS:{HIDDEN_SIZE}, L:{NUM_LAYER})"
     plt.suptitle(main_title)
 
     # Final adjustments

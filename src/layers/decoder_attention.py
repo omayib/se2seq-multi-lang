@@ -8,12 +8,19 @@ import torch.nn.functional as F
 
 
 class AttentionDecoderRNN(Decoder):
-  def __init__(self, hidden_size:int, output_size:int, dropout_rate:float, device:str, max_length:int = MAX_LENGTH, log_logits_tokens:int=0)->None:
+  def __init__(self, hidden_size:int, output_size:int, dropout_rate:float, device:str, max_length:int = MAX_LENGTH, log_logits_tokens:int=0,num_layers:int=1)->None:
     super().__init__(hidden_size, output_size, dropout_rate, device)
     self.max_length = max_length
+    self.num_layers = num_layers
     self.embedding = nn.Embedding(self.output_size, self.hidden_size)
     self.attention = Attention(self.hidden_size)
-    self.gru = nn.GRU(2*self.hidden_size, self.hidden_size, batch_first=True)
+    self.gru = nn.GRU(
+        2 * self.hidden_size,  # Input size: Embedding + Context Vector
+        self.hidden_size,
+        batch_first=True,
+        num_layers=num_layers,  # Pass the layer count
+        dropout=dropout_rate if num_layers > 1 else 0.0  # Built-in inter-layer dropout
+    )
     self.log_logits_tokens = log_logits_tokens
     self.logged_logits = None
 
@@ -46,12 +53,17 @@ class AttentionDecoderRNN(Decoder):
         self.logged_logits = torch.stack(all_logits, dim=1)
 
     return decoder_probs, decoder_hidden, attentions
+
   def forward_step(self, input: torch.Tensor, hidden: torch.Tensor, encoder_outputs: torch.Tensor) -> tuple[torch.Tensor]:
     embedding = self.dropout(self.embedding(input))
-    query = hidden.permute(1,0,2)
+    if self.num_layers > 1:
+        query = hidden[-1, :, :].unsqueeze(0).permute(1, 0, 2)
+    else:
+        query = hidden.permute(1, 0, 2)
     context, attention = self.attention(query, encoder_outputs)
     input_gru = torch.cat((embedding, context), dim=2)
     output, hidden = self.gru(input_gru, hidden)
+    output = self.dropout(output)
     logits = self.output_layer(output)
     return logits, hidden, attention
 

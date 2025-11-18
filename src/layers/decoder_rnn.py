@@ -1,16 +1,25 @@
 import torch
 import torch.nn.functional as F
+from torch import nn
 
 from src.config import SOS_TOKEN, MAX_LENGTH
 from src.layers.decoder import Decoder
 
 
 class DecoderRNN(Decoder):
-  def __init__(self, hidden_size:int, output_size:int, dropout_rate:float, device:str, max_length:int = MAX_LENGTH, log_logits_tokens:int=0)->None:
+  def __init__(self, hidden_size:int, output_size:int, dropout_rate:float, device:str, max_length:int = MAX_LENGTH, log_logits_tokens:int=0,num_layers:int=1)->None:
     super().__init__(hidden_size, output_size, dropout_rate, device)
     self.max_length = max_length
+    self.num_layers = num_layers
     self.log_logits_tokens = log_logits_tokens
     self.logged_logits = None
+    self.gru = nn.GRU(
+        self.hidden_size,  # Input size: Embedding + Context Vector
+        self.hidden_size,
+        batch_first=True,
+        num_layers=num_layers,  # Pass the layer count
+        dropout=dropout_rate if num_layers > 1 else 0.0  # Built-in inter-layer dropout
+    )
 
   def forward(self, encoder_outputs:torch.Tensor,encoder_hidden:torch.Tensor,target_tensor:torch.Tensor=None)->tuple[torch.Tensor]:
     batch_size = encoder_outputs.size(0)
@@ -39,10 +48,11 @@ class DecoderRNN(Decoder):
 
     return decoder_probs, decoder_hidden,None
 
-  def forward_step(self, input:torch.Tensor, hidden = torch.Tensor)-> tuple[torch.Tensor]:
-    embedding = self.embedding(input)
-    output, hidden = self.gru(F.relu(embedding),hidden)
-    logits = self.output_layer(output)
-    return logits, hidden
+  def forward_step(self, input: torch.Tensor, hidden: torch.Tensor) -> tuple[torch.Tensor]:
+      embedding = self.embedding(input)
+      output, hidden = self.gru(F.relu(embedding), hidden)
+      output = self.dropout(output)
+      logits = self.output_layer(output)
+      return logits, hidden
 
 print("DecoderRNN class updated to log initial token logits.")
