@@ -16,6 +16,8 @@ class LanguageData:
         TO_SU_TOKEN:TO_SU_TOKEN_STR
     }
     self.num_words = 5
+  def get_name(self)->str:
+      return self.name
 
   def add_sentence(self, sentence:str)-> None:
     for word in sentence.split(" "):

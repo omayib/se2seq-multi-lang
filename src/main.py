@@ -101,6 +101,8 @@ if __name__ == "__main__":
     axes[2].set_xlabel('Epochs')
     axes[2].set_ylabel('ROUGE-1 F1')
     axes[2].set_title('ROUGE-1 F1: Multilang Attention Model')
+    main_title = f"Training Results (Epochs: {NUM_EPOCHS}, Dropout: {DROPOUT_RATE:.2f}, LR: {LEARNING_RATE}, HS:{HIDDEN_SIZE})"
+    plt.suptitle(main_title)
 
     # Final adjustments
     plt.tight_layout()

@@ -4,8 +4,8 @@ from src.data.pre_processor import Preprocessor
 
 class DataCollection:
     def __init__(self):
-        self.combined_output_language = None
-        self.combined_input_language = None
+        self.combined_input_language = LanguageData("id")
+        self.combined_output_language = LanguageData("multi")
         self.combined_valid_pairs = None
         self.combined_train_pairs = None
         _, _, self.pairs_train_data_id_jv = Preprocessor(first_language="id", second_language="jv", type="train").process()
@@ -13,22 +13,32 @@ class DataCollection:
 
         _, _, self.pairs_train_data_id_su = Preprocessor(first_language="id", second_language="su", type="train").process()
         _, _, self.pairs_valid_data_id_su = Preprocessor(first_language="id", second_language="su", type="valid").process()
-        self.populate()
+        self.populate_train()
+        self.populate_valid()
 
-    def populate(self):
-        self.combined_input_language = LanguageData("id")
-        self.combined_output_language = LanguageData("multi")  # "multi" to indicate it holds Javanese and Sundanese
-
+    def populate_train(self):
         # Populate combined vocabularies
         for pair in self.pairs_train_data_id_jv:
             self.combined_input_language.add_sentence(pair[0])
             self.combined_output_language.add_sentence(pair[1])
 
-        for pair in self.pairs_valid_data_id_jv:
+
+        for pair in self.pairs_train_data_id_su:
             self.combined_input_language.add_sentence(pair[0])
             self.combined_output_language.add_sentence(pair[1])
 
-        for pair in self.pairs_train_data_id_su:
+        print(
+            f"Combined Input Language Name: {self.combined_input_language.name}, Number of words: {self.combined_input_language.num_words}")
+        print(
+            f"Combined Output Language Name: {self.combined_output_language.name}, Number of words: {self.combined_output_language.num_words}")
+
+        # Concatenate pairs
+        self.combined_train_pairs = self.pairs_train_data_id_jv + self.pairs_train_data_id_su
+
+        print(f"Combined training pairs count: {len(self.combined_train_pairs)}")
+
+    def populate_valid(self):
+        for pair in self.pairs_valid_data_id_jv:
             self.combined_input_language.add_sentence(pair[0])
             self.combined_output_language.add_sentence(pair[1])
 
@@ -42,11 +52,10 @@ class DataCollection:
             f"Combined Output Language Name: {self.combined_output_language.name}, Number of words: {self.combined_output_language.num_words}")
 
         # Concatenate pairs
-        self.combined_train_pairs = self.pairs_train_data_id_jv + self.pairs_train_data_id_su
         self.combined_valid_pairs = self.pairs_valid_data_id_jv + self.pairs_valid_data_id_su
 
-        print(f"Combined training pairs count: {len(self.combined_train_pairs)}")
         print(f"Combined validation pairs count: {len(self.combined_valid_pairs)}")
+
     def get_combined_input_language(self)-> LanguageData:
         return self.combined_input_language
 

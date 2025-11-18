@@ -14,43 +14,79 @@ class DataReader:
     # Select the correct dataframe based on type_data and second_language
     if type_data == "train":
         if second_language == "jv":
-            current_df = raw_dataset["jv_train"]
+            self.current_train_df = raw_dataset["jv_train"]
         elif second_language == "su":
-            current_df = raw_dataset["su_train"]
+            self.current_train_df = raw_dataset["su_train"]
         else:
             raise ValueError("Unsupported second_language for training data.")
+
+        self.pairs_train = self.current_train_df.to_numpy().tolist()
+
+        self.pairs_train_normalized = [
+            [normalize_string(string) for string in pair] for pair in self.pairs_train
+        ]
+
+        for i, pair in enumerate(self.pairs_train_normalized):
+            if self.second_language == "jv":
+                self.pairs_train_normalized[i][0] = f"{TO_JV_TOKEN_STR} {pair[0]}"
+            elif self.second_language == "su":
+                self.pairs_train_normalized[i][0] = f"{TO_SU_TOKEN_STR} {pair[0]}"
+            print(f"DataReader {self.second_language} pari : {self.pairs_train_normalized[i]}")
+
     elif type_data == "valid":
         if second_language == "jv":
-            current_df = raw_dataset["jv_valid"]
+            self.current_valid_df = raw_dataset["jv_valid"]
         elif second_language == "su":
-            current_df = raw_dataset["su_valid"]
+            self.current_valid_df = raw_dataset["su_valid"]
         else:
             raise ValueError("Unsupported second_language for validation data.")
+
+        self.pairs_valid = self.current_valid_df.to_numpy().tolist()
+        self.pairs_valid_normalized = [
+            [normalize_string(string) for string in pair] for pair in self.pairs_valid
+        ]
+
+        for i, pair in enumerate(self.pairs_valid_normalized):
+            if self.second_language == "jv":
+                self.pairs_valid_normalized[i][0] = f"{TO_JV_TOKEN_STR} {pair[0]}"
+            elif self.second_language == "su":
+                self.pairs_valid_normalized[i][0] = f"{TO_SU_TOKEN_STR} {pair[0]}"
+
     elif type_data == "test":
         if second_language == "jv":
-            current_df = raw_dataset["jv_test"]
+            self.current_test_df = raw_dataset["jv_test"]
         elif second_language == "su":
-            current_df = raw_dataset["su_test"]
+            self.current_test_df = raw_dataset["su_test"]
         else:
             raise ValueError("Unsupported second_language for test data.")
+        self.pairs_test = self.current_test_df.to_numpy().tolist()
+        self.pairs_test_normalized = [
+            [normalize_string(string) for string in pair] for pair in self.pairs_test
+        ]
+
+        # Prepend language tokens to the input sentences
+
+        for i, pair in enumerate(self.pairs_test_normalized):
+            if self.second_language == "jv":
+                self.pairs_test_normalized[i][0] = f"{TO_JV_TOKEN_STR} {pair[0]}"
+            elif self.second_language == "su":
+                self.pairs_test_normalized[i][0] = f"{TO_SU_TOKEN_STR} {pair[0]}"
+
     else:
         raise ValueError("Unsupported type_data.")
 
-    self.pairs = current_df.to_numpy().tolist()
 
-    self.pairs_normalized = [
-            [normalize_string(string) for string in pair] for pair in self.pairs
-        ]
-
-    # Prepend language tokens to the input sentences
-    for i, pair in enumerate(self.pairs_normalized):
-        if self.second_language == "jv":
-            self.pairs_normalized[i][0] = f"{TO_JV_TOKEN_STR} {pair[0]}"
-        elif self.second_language == "su":
-            self.pairs_normalized[i][0] = f"{TO_SU_TOKEN_STR} {pair[0]}"
-        # print(f"DataReader {self.second_language} pari : {self.pairs_normalized[i]}")
-
-  def read(self)->tuple[LanguageData, LanguageData, list[list[str]]]:
+  def read_train(self)->tuple[LanguageData, LanguageData, list[list[str]]]:
     input_language = LanguageData(self.first_language)
     output_language = LanguageData(self.second_language)
-    return input_language, output_language, self.pairs_normalized
+    return input_language, output_language, self.pairs_train_normalized
+
+  def read_valid(self)->tuple[LanguageData, LanguageData, list[list[str]]]:
+    input_language = LanguageData(self.first_language)
+    output_language = LanguageData(self.second_language)
+    return input_language, output_language, self.pairs_valid_normalized
+
+  def read_test(self)->tuple[LanguageData, LanguageData, list[list[str]]]:
+    input_language = LanguageData(self.first_language)
+    output_language = LanguageData(self.second_language)
+    return input_language, output_language, self.pairs_test_normalized

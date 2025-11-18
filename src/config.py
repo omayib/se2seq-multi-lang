@@ -3,8 +3,8 @@ from pathlib import Path
 import torch
 
 HIDDEN_SIZE = 512 # Increased from 128
-DROPOUT_RATE = 0.5 # Increased from 0.1
-NUM_EPOCHS = 10 # Increased from 150
+DROPOUT_RATE = 0.75 # Increased from 0.1
+NUM_EPOCHS = 5 # Increased from 150
 SOS_TOKEN=0
 EOS_TOKEN=1
 PAD_TOKEN=2

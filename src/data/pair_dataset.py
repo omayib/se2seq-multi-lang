@@ -9,6 +9,11 @@ from src.data.utils import index_from_sentence
 
 class PairDataset:
   def __init__(self, pairs:list[list[str]], input_language:LanguageData, output_language:LanguageData)->None:
+    first_five = pairs[:5]
+    last_five = pairs[-5:]
+    print(f"PairDataset input {input_language.get_name()} ,  output : {output_language.get_name()}")
+    print(f"PairDataset first_five ::  {first_five}")
+    print(f"PairDataset last_five ::  {last_five}")
     self.pairs = pairs
     self.input_language = input_language
     self.output_language = output_language
@@ -22,8 +27,8 @@ class PairDataset:
     input_ids = np.full((n,MAX_LENGTH), PAD_TOKEN, dtype=np.int32)
     target_ids = np.full((n,MAX_LENGTH), PAD_TOKEN, dtype=np.int32)
 
-    for index, (input,target) in enumerate(self.pairs):
-      inputs = index_from_sentence(self.input_language, input)
+    for index, (_input,target) in enumerate(self.pairs):
+      inputs = index_from_sentence(self.input_language, _input)
       targets = index_from_sentence(self.output_language, target)
 
       inputs.append(EOS_TOKEN)

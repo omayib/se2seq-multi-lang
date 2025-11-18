@@ -4,12 +4,28 @@ from src.data.language_data import LanguageData
 
 
 class Preprocessor:
-  def __init__(self,first_language="id",second_language="jv",type="train"):
-    self.first_language = first_language
-    self.second_language = second_language
+  def __init__(self,first_language=LanguageData,second_language=LanguageData,type="train"):
+    self.input_lang = first_language
+    self.output_lang = second_language
     self.type_data = type
+
   def process(self)-> tuple[LanguageData,LanguageData,list[list[str]]]:
-    input_lang, output_lang, all_pairs = DataReader(self.first_language, self.second_language,type_data=self.type_data).read()
+
+      # Initialize variables to safe defaults
+
+    all_pairs = []
+
+    reader = DataReader(self.input_lang, self.output_lang, type_data=self.type_data)
+
+    if self.type_data == "train":
+       input_lang, output_lang, all_pairs = reader.read_train()
+    elif self.type_data == "valid":
+        input_lang, output_lang, all_pairs = reader.read_valid()
+    elif self.type_data == "test":
+        input_lang, output_lang, all_pairs = reader.read_test()
+    else:
+        # Handle unexpected type_data gracefully
+        print(f"Warning: Unknown data type '{self.type_data}'. No pairs loaded.")
 
     for pair in all_pairs:
       input_lang.add_sentence(pair[0])
