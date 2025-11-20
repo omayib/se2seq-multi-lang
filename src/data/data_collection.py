@@ -55,7 +55,11 @@ class DataCollection:
         self.combined_valid_pairs = self.pairs_valid_data_id_jv + self.pairs_valid_data_id_su
 
         print(f"Combined validation pairs count: {len(self.combined_valid_pairs)}")
+    def get_pairs_id_jv(self)-> list[list[str]]:
+        return self.pairs_valid_data_id_jv
 
+    def get_pairs_id_su(self) -> list[list[str]]:
+        return self.pairs_valid_data_id_su
     def get_combined_input_language(self)-> LanguageData:
         return self.combined_input_language
 

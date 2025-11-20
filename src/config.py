@@ -3,7 +3,7 @@ from pathlib import Path
 import torch
 
 HIDDEN_SIZE = 512 # Increased from 128
-DROPOUT_RATE = 0.75 # Increased from 0.1
+DROPOUT_RATE = 0.1 # Increased from 0.1
 NUM_EPOCHS = 300 # Increased from 150
 NUM_LAYER = 3
 SOS_TOKEN=0
@@ -14,8 +14,8 @@ TO_SU_TOKEN=4
 TO_JV_TOKEN_STR = "<to_javanese>"
 TO_SU_TOKEN_STR = "<to_sundanese>"
 MAX_LENGTH=30
-BATCH_SIZE=10
-LEARNING_RATE=0.0001
+BATCH_SIZE=64
+LEARNING_RATE=0.001
 TRAINING_RATE=0.8
 current_dir = Path(__file__).resolve().parent
 # Path
