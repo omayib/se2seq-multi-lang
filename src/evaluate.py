@@ -100,8 +100,8 @@ if __name__ == "__main__":
     # Create a Predictor instance for the multi-language model
     multi_lang_predictor = Predictor(encoder=encoder_multi_lang_eval, decoder=decoder_attention_multi_lang_eval,
                                      input_language=combined_input_language, output_language=combined_output_language)
-    sentence_ori_id = pairs_id_su[4][0]
-    sentence_target_jv = pairs_id_su[4][1]
+    sentence_ori_id = pairs_id_jv[4][0]
+    sentence_target_jv = pairs_id_jv[4][1]
     print(f"bhs id : {sentence_ori_id}")
     print(f"terjemahan : {sentence_target_jv}")
 

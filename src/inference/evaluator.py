@@ -1,131 +1,108 @@
-from typing import Generator
-
 import torch
 from torch.utils.data import DataLoader
 from torchmetrics.text import ROUGEScore, BLEUScore
-
+from src.config import SOS_TOKEN, EOS_TOKEN, PAD_TOKEN
 from src.inference.predictor import Predictor
+from src.data.language_data import LanguageData
 
 
 class Evaluator:
-  def __init__(self, valid_dataloader:DataLoader, predictor:Predictor)-> None:
-    self.valid_dataloader = valid_dataloader
-    self.predictor=predictor
-    # Initialize metric instances once in the constructor
-    self._rouge_metric = ROUGEScore(rouge_keys=("rouge1",))
-    self._bleu_metric = BLEUScore()
+    def __init__(self, valid_dataloader: DataLoader, predictor: Predictor, output_language: LanguageData):
+        self.valid_dataloader = valid_dataloader
+        self.predictor = predictor
+        self.output_language = output_language  # Pengganti tokenizer
+        self.device = predictor.device
 
-  def _calculate_metrics_per_pair(self, predicted_ids:torch.Tensor, target_ids:torch.Tensor)->Generator[dict, None, None]:
-    converter= lambda tensor: " ".join([str(id.item()) for id in tensor])
-    for predict_ids, target_ids_single in zip(predicted_ids, target_ids):
-      if predict_ids.dim() == 0:
-          predict_ids = predict_ids.unsqueeze(0)
-      if target_ids_single.dim() == 0:
-          target_ids_single = target_ids_single.unsqueeze(0)
+        # Inisialisasi metrics sekali saja
+        self.rouge_metric = ROUGEScore()
+        self.bleu_metric = BLEUScore()
 
-      nonzero_index = target_ids_single.count_nonzero().item()
+    def decode_ids_to_text(self, token_ids: torch.Tensor) -> str:
+        """Mengubah Tensor ID menjadi kalimat string, mengabaikan special tokens."""
+        words = []
+        for tid in token_ids:
+            idx = tid.item()
+            # Skip token spesial agar tidak mengacaukan metrik
+            if idx in [SOS_TOKEN, EOS_TOKEN, PAD_TOKEN]:
+                continue
+            # Ambil kata dari dictionary LanguageData
+            word = self.output_language.index_to_word.get(idx, "")
+            words.append(word)
+        return " ".join(words)
 
-      # Take only relevant tokens (up to EOS or actual length) and convert to string
-      predicts = converter(predict_ids[:nonzero_index])
-      targets = converter(target_ids_single[:nonzero_index])
+    def evaluate(self) -> dict:
+        """Menjalankan evaluasi penuh dalam satu loop efisien."""
+        self.rouge_metric.reset()
+        self.bleu_metric.reset()
 
-      # Calculate ROUGE-1 F1
-      rouge_score = self._rouge_metric(predicts, targets)
+        total_token_accuracy = 0
+        total_samples = 0
 
-      # Calculate BLEU score
-      # BLEU expects references as a list of list of tokens, or a list of list of strings for string input
-      bleu_score = self._bleu_metric(predicts, [[targets]]) # [[targets]] because reference can be multiple for one hypothesis
+        # Loop validasi
+        for input_batch, target_batch in self.valid_dataloader:
+            input_batch = input_batch.to(self.device)
+            target_batch = target_batch.to(self.device)
 
-      # Yield a dictionary of scores
-      yield {
-          'rouge1_precision': rouge_score["rouge1_precision"].item(),
-          'rouge1_recall': rouge_score["rouge1_recall"].item(),
-          'rouge1_fmeasure': rouge_score["rouge1_fmeasure"].item(),
-          'bleu': bleu_score.item()
-      }
+            # 1. Prediksi Batch
+            predicted_ids_batch = self.predictor.predict_by_index(input_batch)
 
-  @staticmethod
-  def _calculate_accuracy(predicted:torch.Tensor, target:torch.Tensor)->Generator[torch.Tensor, None, None]:
-    for predict_ids, target_ids in zip(predicted, target):
-      if predict_ids.dim() == 0:
-          predict_ids = predict_ids.unsqueeze(0)
-      if target_ids.dim() == 0:
-          target_ids = target_ids.unsqueeze(0)
+            decoded_preds = []
+            decoded_targets = []
 
-      nonzero_index = target_ids.count_nonzero().item()
-      print(f"nonzero index {nonzero_index}")
-      yield torch.equal(predict_ids[:nonzero_index], target_ids[:nonzero_index])
+            # 2. Proses per kalimat dalam batch
+            for i in range(len(target_batch)):
+                pred_row = predicted_ids_batch[i]
+                target_row = target_batch[i]
 
-  @staticmethod
-  def _calculate_accuracy_token(predicted:torch.Tensor, target:torch.Tensor)->Generator[torch.Tensor, None, None]:
-    for predict_ids, target_ids in zip(predicted, target):
-        if predict_ids.dim() == 0:
-            predict_ids = predict_ids.unsqueeze(0)
-        if target_ids.dim() == 0:
-            target_ids = target_ids.unsqueeze(0)
+                # --- LOGIKA BARU: Token Accuracy ---
 
-        nonzero_index = target_ids.count_nonzero().item()
-        # Compare tokens up to the effective length
-        correct_tokens = (predict_ids[:nonzero_index] == target_ids[:nonzero_index]).sum().item()
-        total_tokens = nonzero_index # Number of actual tokens in the target
+                # A. Ambil ID Asli (Hilangkan Padding)
+                # Target
+                tgt_valid_idx = target_row.nonzero().flatten()
+                clean_target_ids = target_row[tgt_valid_idx]
 
-        # Yield the proportion of correct tokens for this sequence
-        yield correct_tokens / total_tokens if total_tokens > 0 else 0.0
+                # Prediksi
+                pred_valid_idx = pred_row.nonzero().flatten()
+                clean_pred_ids = pred_row[pred_valid_idx]
 
-  def _calculate_average_metric(self, metric_key:str)-> float:
-    total_score = 0.0
-    num_pairs = 0
-    for input_batch, target_batch in self.valid_dataloader:
-        input_batch = input_batch.to(self.predictor.device) # Explicitly move input batch to device
-        target_batch = target_batch.to(self.predictor.device) # Move target to the same device as predictor
-        predicted_batch = self.predictor.predict_by_index(input_batch)
-        # Reset metric states for each batch before calculating scores per pair
-        self._rouge_metric.reset()
-        self._bleu_metric.reset()
-        for scores_dict in self._calculate_metrics_per_pair(predicted_batch, target_batch):
-            total_score += scores_dict[metric_key]
-            num_pairs += 1
-    return total_score / num_pairs if num_pairs > 0 else 0.0
+                # B. Hitung berapa kata yang cocok (Posisi harus sama)
+                # Kita bandingkan sampai panjang terpendek dari keduanya
+                min_len = min(len(clean_pred_ids), len(clean_target_ids))
 
-  @property
-  def rouge1_precision(self)->float:
-    return self._calculate_average_metric("rouge1_precision")
+                if min_len > 0:
+                    # Hitung jumlah token yang sama di posisi yang sama
+                    matches = (clean_pred_ids[:min_len] == clean_target_ids[:min_len]).sum().item()
+                    # Akurasi = jumlah cocok / panjang target
+                    accuracy = matches / len(clean_target_ids)
+                else:
+                    accuracy = 0.0
 
-  @property
-  def rouge1_recall(self)->float:
-    return self._calculate_average_metric("rouge1_recall")
+                total_token_accuracy += accuracy
 
-  @property
-  def rouge1_f1(self)->float:
-    return self._calculate_average_metric("rouge1_fmeasure")
+                # --- AKHIR LOGIKA BARU ---
 
-  @property
-  def bleu_score(self)->float:
-    return self._calculate_average_metric("bleu")
+                # C. Decode ke Teks (Untuk BLEU & ROUGE)
+                pred_text = self.decode_ids_to_text(clean_pred_ids)
+                target_text = self.decode_ids_to_text(clean_target_ids)
 
-  @property
-  def accuracy(self)->float:
-    accuracy=0
-    print(f"evaluator accuracy len : {len(self.valid_dataloader)}")
-    for input_batch, target_batch in self.valid_dataloader:
-      input_batch = input_batch.to(self.predictor.device) # Explicitly move input batch to device
-      target_batch = target_batch.to(self.predictor.device) # Move target to the same device as predictor
-      print(f"evaluator accuracy 11 : {accuracy}")
-      predicted_batch = self.predictor.predict_by_index(input_batch)
-      pridct_acc = self._calculate_accuracy(predicted_batch, target_batch)
-      print(f"pridct_acc {sum(pridct_acc)}")
-      accuracy += sum(pridct_acc)/len(target_batch)
-    return accuracy/len(self.valid_dataloader)
+                decoded_preds.append(pred_text)
+                decoded_targets.append([target_text])
 
-  @property
-  def accuracy_by_token(self)->float:
-    total_accuracy = 0.0
-    count = 0
-    for input_batch, target_batch in self.valid_dataloader:
-        input_batch = input_batch.to(self.predictor.device) # Explicitly move input batch to device
-        target_batch = target_batch.to(self.predictor.device) # Move target to the same device as predictor
-        predicted_batch = self.predictor.predict_by_index(input_batch)
-        for single_seq_accuracy in self._calculate_accuracy_token(predicted_batch, target_batch):
-            total_accuracy += single_seq_accuracy
-            count += 1
-    return total_accuracy / count if count > 0 else 0.0
+            total_samples += len(target_batch)
+
+            # 3. Update Metrics
+            self.rouge_metric.update(decoded_preds, [t[0] for t in decoded_targets])
+            self.bleu_metric.update(decoded_preds, decoded_targets)
+
+        # 4. Hitung Hasil Akhir
+        final_rouge = self.rouge_metric.compute()
+        final_bleu = self.bleu_metric.compute()
+
+        # Rata-rata token accuracy
+        final_accuracy = total_token_accuracy / total_samples if total_samples > 0 else 0.0
+
+        return {
+            "accuracy": final_accuracy,
+            "bleu": final_bleu.item(),
+            "rouge1_f1": final_rouge['rouge1_fmeasure'].item()
+        }
